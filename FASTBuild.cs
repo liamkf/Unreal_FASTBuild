@@ -1,4 +1,4 @@
-﻿// Copyright 2015 by Yassine Riahi and Liam Flookes. Available under MIT License, see license file on github.
+// Copyright 2015 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
 // Requires fbuild.exe to be in the path.
 // As written only supports Win10/VS2015. Other VS toolchains (including Durango) require minor modifications.
@@ -40,10 +40,10 @@ namespace UnrealBuildTool
 		}
 
 		private static void AddText(FileStream DestinationFile, string StringToWrite)
-        {
-            byte[] Info = new System.Text.UTF8Encoding(true).GetBytes(StringToWrite);
+		{
+			byte[] Info = new System.Text.UTF8Encoding(true).GetBytes(StringToWrite);
 			DestinationFile.Write(Info, 0, Info.Length);
-        }
+		}
 
 		private static Dictionary<string, string> ParseCommandLineOptions(string CompilerCommandLine, string[] specialOptions)
 		{
@@ -194,10 +194,10 @@ namespace UnrealBuildTool
 			return ParsedCompilerOptions;
 		}
 
-        private static string GetOptionValue(Dictionary<string, string> OptionsDictionary, string Key, Action Action, bool ProblemIfNotFound = false)
-        {
+		private static string GetOptionValue(Dictionary<string, string> OptionsDictionary, string Key, Action Action, bool ProblemIfNotFound = false)
+		{
 			string Value = string.Empty;
-            if(OptionsDictionary.TryGetValue(Key, out Value))
+			if(OptionsDictionary.TryGetValue(Key, out Value))
 			{
 				return Value.Trim(new Char[] { '\"' });
 			}
@@ -208,12 +208,12 @@ namespace UnrealBuildTool
 				Console.WriteLine("Action.CommandArguments: " + Action.CommandArguments);
 			}
 
-            return Value;
-        }
+			return Value;
+		}
 
 		private static void WriteEnvironmentSetup(FileStream FbOutputFileStream)
-        {
-            VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
+		{
+			VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
 
 			IDictionary envVars = Environment.GetEnvironmentVariables();
 
@@ -261,7 +261,7 @@ namespace UnrealBuildTool
 
 			AddText(FbOutputFileStream, "\t}\n"); //End environment
 			AddText(FbOutputFileStream, "}\n\n"); //End Settings
-        }
+		}
 
 		private static void AddCompileAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<string> DependencyNames)
 		{
@@ -375,7 +375,7 @@ namespace UnrealBuildTool
 				{
 					AddText(FbOutputFileStream, string.Format("\t.LibrarianOptions = ' /OUT:\"%2\" {0} \"%1\"' \n", OtherCompilerOptions));
 				}
-                            
+
 				if (DependencyNames.Count > 0)
 				{
 					AddText(FbOutputFileStream, string.Format("\t.LibrarianAdditionalInputs = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
@@ -409,18 +409,18 @@ namespace UnrealBuildTool
 			}
 		}
 
-        private static void CreateBffFile(List<Action> Actions, string BffFilePath)
-        {
+		private static void CreateBffFile(List<Action> Actions, string BffFilePath)
+		{
 			try
-            {
-                FileStream FbOutputFileStream = new FileStream(BffFilePath, FileMode.Create, FileAccess.Write);
-
-                WriteEnvironmentSetup(FbOutputFileStream); //Compiler, environment variables and base paths
-
+			{
+				FileStream FbOutputFileStream = new FileStream(BffFilePath, FileMode.Create, FileAccess.Write);
+	
+				WriteEnvironmentSetup(FbOutputFileStream); //Compiler, environment variables and base paths
+	
 				for (int ActionIndex = 0; ActionIndex < Actions.Count; ActionIndex++)
 				{
 					Action Action = Actions[ActionIndex];
-
+	
 					// Resolve dependencies
 					List<string> DependencyNames = new List<string>();
 					foreach (FileItem Item in Action.PrerequisiteItems)
@@ -430,10 +430,10 @@ namespace UnrealBuildTool
 							DependencyNames.Add(string.Format("'Action_{0}'", Actions.IndexOf(Item.ProducingAction)));
 						}
 					}
-
+	
 					Action.CommandArguments = Action.CommandArguments.Replace("$(DXSDK_DIR)", "$DXSDK_DIR$");
 					Action.CommandArguments = Action.CommandArguments.Replace("$(CommonProgramFiles)", "$CommonProgramFiles$");
-
+	
 					switch(Action.ActionType)
 					{
 						case ActionType.Compile : AddCompileAction(FbOutputFileStream, Action, ActionIndex, DependencyNames); break;
@@ -441,7 +441,7 @@ namespace UnrealBuildTool
 						default: Console.WriteLine("Fastbuild is ignoring an unsupported action: " + Action.ActionType.ToString()); break;
 					}
 				}
-
+	
 				AddText(FbOutputFileStream, "Alias( 'all' ) \n{\n");
 				AddText(FbOutputFileStream, "\t.Targets = { \n");
 				for (int ActionIndex = 0; ActionIndex < Actions.Count; ActionIndex++)
@@ -449,31 +449,31 @@ namespace UnrealBuildTool
 					AddText(FbOutputFileStream,string.Format("\t\t'Action_{0}'{1}", ActionIndex, ActionIndex < (Actions.Count - 1) ? ",\n" : "\n\t}\n"));
 				}
 				AddText(FbOutputFileStream, "}\n");
-
+	
 				FbOutputFileStream.Close();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Exception while creating bff file: " + e.ToString());
-            }
-        }
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine("Exception while creating bff file: " + e.ToString());
+			}
+    }
 
 		private static ExecutionResult ExecuteBffFile(string BffFilePath)
 		{
 			//Interesting flags for FASTBuild: -cache (can also be controlled by environment variables), -nostoponerror, -verbose
 			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", "-summary -ide -dist -config " + BffFilePath);
 
-            FBStartInfo.UseShellExecute = false;
-            FBStartInfo.WorkingDirectory = Path.Combine(BuildConfiguration.RelativeEnginePath, "Source");
+			FBStartInfo.UseShellExecute = false;
+			FBStartInfo.WorkingDirectory = Path.Combine(BuildConfiguration.RelativeEnginePath, "Source");
 
 			try
 			{
 				Process FBProcess = new Process();
-                FBProcess.StartInfo = FBStartInfo;
+				FBProcess.StartInfo = FBStartInfo;
 
-                FBStartInfo.RedirectStandardError = true;
-                FBStartInfo.RedirectStandardOutput = true;
-                FBProcess.EnableRaisingEvents = true;
+				FBStartInfo.RedirectStandardError = true;
+				FBStartInfo.RedirectStandardOutput = true;
+				FBProcess.EnableRaisingEvents = true;
 
 				DataReceivedEventHandler OutputEventHandler = (Sender, Args) => {
 					if (Args.Data != null)
@@ -481,15 +481,15 @@ namespace UnrealBuildTool
 				};
 
 				FBProcess.OutputDataReceived += OutputEventHandler;
-                FBProcess.ErrorDataReceived += OutputEventHandler;
+				FBProcess.ErrorDataReceived += OutputEventHandler;
 				
-                FBProcess.Start();
+				FBProcess.Start();
 				
-                FBProcess.BeginOutputReadLine();
-                FBProcess.BeginErrorReadLine();
-
-                FBProcess.WaitForExit();
-                return FBProcess.ExitCode == 0 ? ExecutionResult.TasksSucceeded : ExecutionResult.TasksFailed;
+				FBProcess.BeginOutputReadLine();
+				FBProcess.BeginErrorReadLine();
+				
+				FBProcess.WaitForExit();
+				return FBProcess.ExitCode == 0 ? ExecutionResult.TasksSucceeded : ExecutionResult.TasksFailed;
 			}
 			catch (Exception e)
 			{
