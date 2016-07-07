@@ -33,7 +33,7 @@ namespace UnrealBuildTool
 			if (Actions.Count > 0)
 			{
 				string FASTBuildFilePath = Path.Combine(BuildConfiguration.BaseIntermediatePath, "fbuild.bff");
-                CreateBffFile(Actions, FASTBuildFilePath);
+				CreateBffFile(Actions, FASTBuildFilePath);
 				return ExecuteBffFile(FASTBuildFilePath);
 			}
 			return FASTBuildResult;
