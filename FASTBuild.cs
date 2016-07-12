@@ -263,7 +263,7 @@ namespace UnrealBuildTool
 			AddText(FbOutputFileStream, "}\n\n"); //End Settings
 		}
 
-		private static void AddCompileAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<int> DependencyIndices)
+		private static void AddCompileAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<string> DependencyNames)
 		{
 			string CompilerName = "UE4Compiler";
 			string CompilerOutputExtension = ".cpp.obj";
@@ -342,54 +342,21 @@ namespace UnrealBuildTool
 				}
 			}
 
-			if (DependencyIndices.Count > 0)
+			if (DependencyNames.Count > 0)
 			{
-				List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
 				AddText(FbOutputFileStream, string.Format("\t.PreBuildDependencies = {{ {0} }}\n", string.Join(",", DependencyNames.ToArray())));
 			}
 
 			AddText(FbOutputFileStream, string.Format("}}\n\n"));
 		}
 
-		//The linker does not appreciate having duplicates (warnings for obj files, errors for duplicate compiled resources)
-		//so we remove from the response file any files which we will already be including from the dependencies.
-		private static void FixupResponseFile(string ResponseFilePath, List<int> DependencyIndices, List<Action> Actions)
-		{
-			string[] responseFileText = File.ReadAllLines(ResponseFilePath);
-			List<string> newResponseFileText = new List<string>();
-			foreach (string line in responseFileText)
-			{
-				bool FoundDependencyInResponseFile = false;
-				string fileName = Path.GetFileName(line.Replace("\"", null));
-				foreach (int depIndex in DependencyIndices)
-				{
-					foreach (FileItem item in Actions[depIndex].ProducedItems)
-					{
-						if (item.ToString() == fileName)
-						{
-							FoundDependencyInResponseFile = true;
-							break;
-						}
-					}
-					if (FoundDependencyInResponseFile)
-						break;
-				}
-				if (!FoundDependencyInResponseFile)
-				{
-					newResponseFileText.Add(line);
-				}
-			}
-			File.WriteAllLines(ResponseFilePath, newResponseFileText.ToArray());
-		}
-
-		private static void AddLinkAction(FileStream FbOutputFileStream, List<Action> Actions, int ActionIndex, List<int> DependencyIndices)
-		{
-			Action Action = Actions[ActionIndex];
+		private static void AddLinkAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<string> DependencyNames)
+		{ 
 			string[] SpecialLinkerOptions = { "/OUT:", "@" };
 			var ParsedLinkerOptions = ParseCommandLineOptions(Action.CommandArguments, SpecialLinkerOptions);
 
 			string OutputFile = GetOptionValue(ParsedLinkerOptions, "/OUT:", Action, ProblemIfNotFound: true);
-			string ResponseFilePath = GetOptionValue(ParsedLinkerOptions, "@", Action, ProblemIfNotFound: Action.CommandPath.Contains("link.exe")); //linker always uses response files
+			string ResponseFilePath = GetOptionValue(ParsedLinkerOptions, "@", Action);
 			string OtherCompilerOptions = GetOptionValue(ParsedLinkerOptions, "OtherOptions", Action);
 
 			if (Action.CommandPath.Contains("lib.exe"))
@@ -409,23 +376,22 @@ namespace UnrealBuildTool
 					AddText(FbOutputFileStream, string.Format("\t.LibrarianOptions = ' /OUT:\"%2\" {0} \"%1\"' \n", OtherCompilerOptions));
 				}
 
-				if (DependencyIndices.Count > 0)
+				if (DependencyNames.Count > 0)
 				{
-					List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
 					AddText(FbOutputFileStream, string.Format("\t.LibrarianAdditionalInputs = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
 					AddText(FbOutputFileStream, string.Format("\t.PreBuildDependencies = {{ {0} }}\n", string.Join(",", DependencyNames.ToArray())));
 				}
 				else
 				{
-					// Unreal knows that dependencies are already built so they don't show up as actions. 
-					// The depedencies are in the response file, so we put the first line of the response as an input.
+					// Bit of a last ditch effort to fix fbuild from complaining when Unreal knows that dependencies are already built
+					// so they don't show up as actions. The prebuilt depedencies are in the response file, so we just put the first line of the response as an input.
 					if(ResponseFilePath.Length > 0)
 					{
 						AddText(FbOutputFileStream, string.Format("\t.LibrarianAdditionalInputs = {{ {0} }} \n", File.ReadLines(ResponseFilePath).First()));
 					}
 					else
 					{
-						Console.WriteLine("No inputs for Library, Fastbuild will not be happy!");
+						Console.WriteLine("No inputs for the library, Fastbuild will not be happy!");
 					}
 				}
 
@@ -437,18 +403,7 @@ namespace UnrealBuildTool
 				AddText(FbOutputFileStream, string.Format("Executable('Action_{0}')\n{{\n", ActionIndex));
 				AddText(FbOutputFileStream, string.Format("\t.Linker = '{0}' \n", Action.CommandPath));
 				AddText(FbOutputFileStream, string.Format("\t.LinkerOptions = '\"%1\" /Out:\"%2\" @{0} {1}' \n", ResponseFilePath, OtherCompilerOptions));
-
-				if (DependencyIndices.Count > 0)
-				{
-					FixupResponseFile(ResponseFilePath, DependencyIndices, Actions);
-					List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
-					AddText(FbOutputFileStream, string.Format("\t.Libraries = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
-				}
-				else if (ResponseFilePath.Length > 0) // The inputs are (probably?) in the response file, so we put the first line of the response as an input.
-				{
-					AddText(FbOutputFileStream, string.Format("\t.Libraries = {{ {0} }} \n", File.ReadLines(ResponseFilePath).First()));
-				}
-				
+				AddText(FbOutputFileStream, string.Format("\t.Libraries = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
 				AddText(FbOutputFileStream, string.Format("\t.LinkerOutput = '{0}' \n", OutputFile));
 				AddText(FbOutputFileStream, string.Format("}}\n\n"));
 			}
@@ -467,26 +422,22 @@ namespace UnrealBuildTool
 					Action Action = Actions[ActionIndex];
 	
 					// Resolve dependencies
-					List<int> DependencyIndices = new List<int>();
+					List<string> DependencyNames = new List<string>();
 					foreach (FileItem Item in Action.PrerequisiteItems)
 					{
-						if (Item.ProducingAction != null)
+						if (Item.ProducingAction != null && Actions.Contains(Item.ProducingAction))
 						{
-							int ProducingActionIndex = Actions.IndexOf(Item.ProducingAction);
-							if (ProducingActionIndex >= 0)
-							{
-								DependencyIndices.Add(ProducingActionIndex);
-							}
+							DependencyNames.Add(string.Format("'Action_{0}'", Actions.IndexOf(Item.ProducingAction)));
 						}
 					}
-
+	
 					Action.CommandArguments = Action.CommandArguments.Replace("$(DXSDK_DIR)", "$DXSDK_DIR$");
 					Action.CommandArguments = Action.CommandArguments.Replace("$(CommonProgramFiles)", "$CommonProgramFiles$");
 	
 					switch(Action.ActionType)
 					{
-						case ActionType.Compile : AddCompileAction(FbOutputFileStream, Action, ActionIndex, DependencyIndices); break;
-						case ActionType.Link: AddLinkAction(FbOutputFileStream, Actions, ActionIndex, DependencyIndices); break;
+						case ActionType.Compile : AddCompileAction(FbOutputFileStream, Action, ActionIndex, DependencyNames); break;
+						case ActionType.Link: AddLinkAction(FbOutputFileStream, Action, ActionIndex, DependencyNames); break;
 						default: Console.WriteLine("Fastbuild is ignoring an unsupported action: " + Action.ActionType.ToString()); break;
 					}
 				}
