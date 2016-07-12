@@ -1,4 +1,4 @@
-// Copyright 2015 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
+﻿// Copyright 2015 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
 // Requires fbuild.exe to be in the path.
 // As written only supports Win10/VS2015. Other VS toolchains (including Durango) require minor modifications.
@@ -229,7 +229,7 @@ namespace UnrealBuildTool
 			AddText(FbOutputFileStream, "Compiler('UE4Compiler') \n{\n");
 			AddText(FbOutputFileStream, "\t.Root = '$VSBasePath$/VC/bin'\n");
 			AddText(FbOutputFileStream, "\t.Executable = '$Root$/amd64/cl.exe'\n");
-			AddText(FbOutputFileStream, "\t.ExtraFiles =\n\t\t{\n");
+			AddText(FbOutputFileStream, "\t.ExtraFiles =\n\t{\n");
 				AddText(FbOutputFileStream, "\t\t'$Root$/amd64/c1.dll'\n");
 				AddText(FbOutputFileStream, "\t\t'$Root$/amd64/c1xx.dll'\n");
 				AddText(FbOutputFileStream, "\t\t'$Root$/amd64/c2.dll'\n");
@@ -241,7 +241,7 @@ namespace UnrealBuildTool
 				AddText(FbOutputFileStream, "\t\t'$Root$/amd64/mspdbcore.dll'\n");
 				AddText(FbOutputFileStream, "\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC140.CRT/msvcp140.dll'\n");
 				AddText(FbOutputFileStream, "\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC140.CRT/vccorlib140.dll'\n");
-				AddText(FbOutputFileStream, "\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\t\t}\n");
+				AddText(FbOutputFileStream, "\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\t}\n");
 			AddText(FbOutputFileStream, "}\n\n");
 			//End compiler
 
@@ -263,7 +263,7 @@ namespace UnrealBuildTool
 			AddText(FbOutputFileStream, "}\n\n"); //End Settings
 		}
 
-		private static void AddCompileAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<string> DependencyNames)
+		private static void AddCompileAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<int> DependencyIndices)
 		{
 			string CompilerName = "UE4Compiler";
 			string CompilerOutputExtension = ".cpp.obj";
@@ -307,7 +307,6 @@ namespace UnrealBuildTool
 
 			AddText(FbOutputFileStream, string.Format("ObjectList('Action_{0}')\n{{\n", ActionIndex));
 			AddText(FbOutputFileStream, string.Format("\t.Compiler = '{0}' \n", CompilerName));
-			AddText(FbOutputFileStream, string.Format("\t.CompilerOutputExtension = '{0}' \n", CompilerOutputExtension));
 			AddText(FbOutputFileStream, string.Format("\t.CompilerInputFiles = \"{0}\"\n", InputFile));
 			AddText(FbOutputFileStream, string.Format("\t.CompilerOutputPath = \"{0}\"\n", IntermediatePath));
 
@@ -321,42 +320,96 @@ namespace UnrealBuildTool
 
 				AddText(FbOutputFileStream, string.Format("\t.CompilerOptions = '\"%1\" /Fo\"%2\" /Fp\"{0}\" /Yu\"{1}\" {2} '\n", PCHOutputFile, PCHIncludeHeader, OtherCompilerOptions));
 
-				AddText(FbOutputFileStream, string.Format("\t.PCHOptions = '\"%1\" /Fo\"%3\" /Fp\"%2\" /Yc\"{0}\" {1}'\n", PCHIncludeHeader, OtherCompilerOptions));
+				AddText(FbOutputFileStream, string.Format("\t.PCHOptions = '\"%1\" /Fp\"%2\" /Yc\"{0}\" {1} /Fo\"{2}\"'\n", PCHIncludeHeader, OtherCompilerOptions, OutputObjectFileName));
 				AddText(FbOutputFileStream, string.Format("\t.PCHInputFile = \"{0}\"\n", InputFile));
 				AddText(FbOutputFileStream, string.Format("\t.PCHOutputFile = \"{0}\"\n", PCHOutputFile));
-				AddText(FbOutputFileStream, string.Format("\t.PCHObjectNameOverride = \"{0}\"\n", OutputObjectFileName));
+				AddText(FbOutputFileStream,				  "\t.CompilerOutputExtension = '.obj' \n");
 			}
 			else if (ParsedCompilerOptions.ContainsKey("/Yu"))
 			{
 				string PCHIncludeHeader = GetOptionValue(ParsedCompilerOptions, "/Yu", Action, ProblemIfNotFound: true);
 				string PCHOutputFile = GetOptionValue(ParsedCompilerOptions, "/Fp", Action, ProblemIfNotFound: true);
-
+				AddText(FbOutputFileStream, string.Format("\t.CompilerOutputExtension = '{0}' \n", CompilerOutputExtension));
 				AddText(FbOutputFileStream, string.Format("\t.CompilerOptions = '\"%1\" /Fo\"%2\" /Fp\"{0}\" /Yu\"{1}\" {2} '\n", PCHOutputFile, PCHIncludeHeader, OtherCompilerOptions));
 			}
 			else
 			{
-				AddText(FbOutputFileStream, string.Format("\t.CompilerOptions = '{0} /Fo\"%2\" \"%1\"'\n", OtherCompilerOptions));
 				if (CompilerName == "UE4ResourceCompiler")
 				{
-					AddText(FbOutputFileStream, string.Format("\t.CompilerObjectNameOverride = \"{0}\"\n", OutputObjectFileName));
+					AddText(FbOutputFileStream, string.Format("\t.CompilerOptions = '{0} /fo\"%2\" \"%1\" '\n", OtherCompilerOptions));
+					CompilerOutputExtension = Path.GetExtension(InputFile) + ".res";
+					AddText(FbOutputFileStream, string.Format("\t.CompilerOutputExtension = '{0}' \n", CompilerOutputExtension));
+				}
+				else
+				{
+					AddText(FbOutputFileStream, string.Format("\t.CompilerOptions = '{0} /Fo\"%2\" \"%1\" '\n", OtherCompilerOptions));
+					AddText(FbOutputFileStream, string.Format("\t.CompilerOutputExtension = '{0}' \n", CompilerOutputExtension));
 				}
 			}
 
-			if (DependencyNames.Count > 0)
+			if (DependencyIndices.Count > 0)
 			{
+				List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
 				AddText(FbOutputFileStream, string.Format("\t.PreBuildDependencies = {{ {0} }}\n", string.Join(",", DependencyNames.ToArray())));
 			}
 
 			AddText(FbOutputFileStream, string.Format("}}\n\n"));
 		}
 
-		private static void AddLinkAction(FileStream FbOutputFileStream, Action Action, int ActionIndex, List<string> DependencyNames)
-		{ 
+		//The linker does not appreciate having duplicates (warnings for obj files, errors for duplicate compiled resources)
+		//so we remove from the response file any files which we will already be including from the dependencies.
+		private static void FixupResponseFile(string ResponseFilePath, List<int> DependencyIndices, List<int> PrebuildDependencies, List<Action> Actions)
+		{
+			for(int i = 0; i < DependencyIndices.Count; ++i)
+			{
+				int depIndex = DependencyIndices[i];
+				foreach (FileItem item in Actions[depIndex].ProducedItems)
+				{
+					if (item.ToString().Contains(".pch"))
+					{
+						DependencyIndices.RemoveAt(i);
+						i--;
+						PrebuildDependencies.Add(depIndex);
+						break;
+					}
+				}
+			}
+
+			string[] responseFileText = File.ReadAllLines(ResponseFilePath);
+			List<string> newResponseFileText = new List<string>();
+			foreach (string line in responseFileText)
+			{
+				bool FoundDependencyInResponseFile = false;
+				string fileName = Path.GetFileName(line.Replace("\"", null));
+				foreach (int depIndex in DependencyIndices)
+				{
+					foreach (FileItem item in Actions[depIndex].ProducedItems)
+					{
+						if (item.ToString() == fileName)
+						{
+							FoundDependencyInResponseFile = true;
+							break;
+						}
+					}
+					if (FoundDependencyInResponseFile)
+						break;
+				}
+				if (!FoundDependencyInResponseFile)
+				{
+					newResponseFileText.Add(line);
+				}
+			}
+			File.WriteAllLines(ResponseFilePath, newResponseFileText.ToArray());
+		}
+
+		private static void AddLinkAction(FileStream FbOutputFileStream, List<Action> Actions, int ActionIndex, List<int> DependencyIndices)
+		{
+			Action Action = Actions[ActionIndex];
 			string[] SpecialLinkerOptions = { "/OUT:", "@" };
 			var ParsedLinkerOptions = ParseCommandLineOptions(Action.CommandArguments, SpecialLinkerOptions);
 
 			string OutputFile = GetOptionValue(ParsedLinkerOptions, "/OUT:", Action, ProblemIfNotFound: true);
-			string ResponseFilePath = GetOptionValue(ParsedLinkerOptions, "@", Action);
+			string ResponseFilePath = GetOptionValue(ParsedLinkerOptions, "@", Action, ProblemIfNotFound: Action.CommandPath.Contains("link.exe")); //linker always uses response files
 			string OtherCompilerOptions = GetOptionValue(ParsedLinkerOptions, "OtherOptions", Action);
 
 			if (Action.CommandPath.Contains("lib.exe"))
@@ -376,22 +429,23 @@ namespace UnrealBuildTool
 					AddText(FbOutputFileStream, string.Format("\t.LibrarianOptions = ' /OUT:\"%2\" {0} \"%1\"' \n", OtherCompilerOptions));
 				}
 
-				if (DependencyNames.Count > 0)
+				if (DependencyIndices.Count > 0)
 				{
+					List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
 					AddText(FbOutputFileStream, string.Format("\t.LibrarianAdditionalInputs = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
 					AddText(FbOutputFileStream, string.Format("\t.PreBuildDependencies = {{ {0} }}\n", string.Join(",", DependencyNames.ToArray())));
 				}
 				else
 				{
-					// Bit of a last ditch effort to fix fbuild from complaining when Unreal knows that dependencies are already built
-					// so they don't show up as actions. The prebuilt depedencies are in the response file, so we just put the first line of the response as an input.
+					// Unreal knows that dependencies are already built so they don't show up as actions. 
+					// The depedencies are in the response file, so we put the first line of the response as an input.
 					if(ResponseFilePath.Length > 0)
 					{
 						AddText(FbOutputFileStream, string.Format("\t.LibrarianAdditionalInputs = {{ {0} }} \n", File.ReadLines(ResponseFilePath).First()));
 					}
 					else
 					{
-						Console.WriteLine("No inputs for the library, Fastbuild will not be happy!");
+						Console.WriteLine("No inputs for Library, Fastbuild will not be happy!");
 					}
 				}
 
@@ -402,8 +456,32 @@ namespace UnrealBuildTool
 			{
 				AddText(FbOutputFileStream, string.Format("Executable('Action_{0}')\n{{\n", ActionIndex));
 				AddText(FbOutputFileStream, string.Format("\t.Linker = '{0}' \n", Action.CommandPath));
-				AddText(FbOutputFileStream, string.Format("\t.LinkerOptions = '\"%1\" /Out:\"%2\" @{0} {1}' \n", ResponseFilePath, OtherCompilerOptions));
-				AddText(FbOutputFileStream, string.Format("\t.Libraries = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
+
+				List<int> PrebuildDependencies = new List<int>();
+				if (DependencyIndices.Count > 0)
+				{
+					FixupResponseFile(ResponseFilePath, DependencyIndices, PrebuildDependencies, Actions);
+				}
+
+				if (DependencyIndices.Count > 0)
+				{
+					List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
+					AddText(FbOutputFileStream, string.Format("\t.Libraries = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
+					AddText(FbOutputFileStream, string.Format("\t.LinkerOptions = '\"%1\" /Out:\"%2\" @{0} {1}' \n", ResponseFilePath, OtherCompilerOptions));
+				}
+				else if (ResponseFilePath.Length > 0) // The inputs are (probably?) in the response file, so we put the response file as the input
+				{
+
+					AddText(FbOutputFileStream, string.Format("\t.Libraries = {{ '{0}' }} \n", ResponseFilePath));
+					AddText(FbOutputFileStream, string.Format("\t.LinkerOptions = '@\"%1\" /Out:\"%2\" {0}' \n", OtherCompilerOptions));
+				}
+
+				if(PrebuildDependencies.Count > 0)
+				{
+					List<string> PrebuildDependencyNames = PrebuildDependencies.ConvertAll(x => string.Format("'Action_{0}'", x));
+					AddText(FbOutputFileStream, string.Format("\t.PreBuildDependencies = {{ {0} }} \n", string.Join(",", PrebuildDependencyNames.ToArray())));
+				}
+				
 				AddText(FbOutputFileStream, string.Format("\t.LinkerOutput = '{0}' \n", OutputFile));
 				AddText(FbOutputFileStream, string.Format("}}\n\n"));
 			}
@@ -422,22 +500,26 @@ namespace UnrealBuildTool
 					Action Action = Actions[ActionIndex];
 	
 					// Resolve dependencies
-					List<string> DependencyNames = new List<string>();
+					List<int> DependencyIndices = new List<int>();
 					foreach (FileItem Item in Action.PrerequisiteItems)
 					{
-						if (Item.ProducingAction != null && Actions.Contains(Item.ProducingAction))
+						if (Item.ProducingAction != null)
 						{
-							DependencyNames.Add(string.Format("'Action_{0}'", Actions.IndexOf(Item.ProducingAction)));
+							int ProducingActionIndex = Actions.IndexOf(Item.ProducingAction);
+							if (ProducingActionIndex >= 0)
+							{
+								DependencyIndices.Add(ProducingActionIndex);
+							}
 						}
 					}
-	
+
 					Action.CommandArguments = Action.CommandArguments.Replace("$(DXSDK_DIR)", "$DXSDK_DIR$");
 					Action.CommandArguments = Action.CommandArguments.Replace("$(CommonProgramFiles)", "$CommonProgramFiles$");
 	
 					switch(Action.ActionType)
 					{
-						case ActionType.Compile : AddCompileAction(FbOutputFileStream, Action, ActionIndex, DependencyNames); break;
-						case ActionType.Link: AddLinkAction(FbOutputFileStream, Action, ActionIndex, DependencyNames); break;
+						case ActionType.Compile : AddCompileAction(FbOutputFileStream, Action, ActionIndex, DependencyIndices); break;
+						case ActionType.Link: AddLinkAction(FbOutputFileStream, Actions, ActionIndex, DependencyIndices); break;
 						default: Console.WriteLine("Fastbuild is ignoring an unsupported action: " + Action.ActionType.ToString()); break;
 					}
 				}
@@ -461,7 +543,7 @@ namespace UnrealBuildTool
 		private static ExecutionResult ExecuteBffFile(string BffFilePath)
 		{
 			//Interesting flags for FASTBuild: -cache (can also be controlled by environment variables), -nostoponerror, -verbose
-			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", "-summary -ide -dist -config " + BffFilePath);
+			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", "-summary -dist -ide -config " + BffFilePath);
 
 			FBStartInfo.UseShellExecute = false;
 			FBStartInfo.WorkingDirectory = Path.Combine(BuildConfiguration.RelativeEnginePath, "Source");
