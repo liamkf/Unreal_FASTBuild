@@ -597,7 +597,12 @@ namespace UnrealBuildTool
 				if (ResponseFilePath.Length > 0)
 				{
 					if(IsMSVC())
-						AddText(string.Format("\t.LibrarianOptions = ' /OUT:\"%2\" @{0} {1} \"%1\"' \n", ResponseFilePath, OtherCompilerOptions));
+                    {
+                        if (DependencyIndices.Count > 0)
+                            AddText(string.Format("\t.LibrarianOptions = ' /OUT:\"%2\" @\"{0}\" {1} \"%1\"' \n", ResponseFilePath, OtherCompilerOptions));
+                        else
+                            AddText(string.Format("\t.LibrarianOptions = ' /OUT:\"%2\" @\"%1\" {0}' \n", OtherCompilerOptions));
+                    }						
 					else
 						AddText(string.Format("\t.LibrarianOptions = '\"%2\" @\"%1\" {0}' \n", OtherCompilerOptions));
 				}
