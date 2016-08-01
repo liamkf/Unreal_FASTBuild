@@ -1,8 +1,8 @@
 ﻿// Copyright 2015 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
 // Requires fbuild.exe to be in the path.
-// As written only supports Win10/VS2015. Other VS toolchains (including Durango) require minor modifications.
-// PS4 is also doable, but using sndbs is probably easier.
+// Predominately tested with Win10/VS2015.
+// Different VS toolchains like Durango or Orbis may require some modifications.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -357,15 +357,11 @@ namespace UnrealBuildTool
 				platformVersionNumber = "120";
 			}
 
-            /*
+            /* Maybe not needed to compile anymore?
 			if(!WindowsPlatform.bUseWindowsSDK10)
-			{
-				//AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcr{1}.dll'\n", platformVersionNumber, platformVersionNumber));
-			}
+				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcr{1}.dll'\n", platformVersionNumber, platformVersionNumber));
 			else
-			{
-				//AddText("\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\n");
-			}
+				AddText("\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\n");
             */
 			AddText(string.Format("\t\t'$Root$/amd64/mspft{0}.dll'\n",platformVersionNumber));
 			AddText(string.Format("\t\t'$Root$/amd64/msobj{0}.dll'\n", platformVersionNumber));
@@ -392,7 +388,7 @@ namespace UnrealBuildTool
 				AddText("\t\t'$Root$/mspdbsrv.exe'\n");
 				AddText("\t\t'$Root$/mspdbcore.dll'\n");
 				AddText("\t\t'$Root$/vcmeta.dll'\n");
-				string XBplatformVersionNumber = "110"; //Todo
+				string XBplatformVersionNumber = "110"; //Todo: This is a bodge. Check durango env vars?
 				AddText(string.Format("\t\t'$Root$/mspft{0}.dll'\n", XBplatformVersionNumber));
 				AddText(string.Format("\t\t'$Root$/msobj{0}.dll'\n", XBplatformVersionNumber));
 				AddText(string.Format("\t\t'$Root$/mspdb{0}.dll'\n", XBplatformVersionNumber));
@@ -729,7 +725,7 @@ namespace UnrealBuildTool
 			{
 				Console.WriteLine("Exception while creating bff file: " + e.ToString());
 			}
-    }
+        }
 
 		private static ExecutionResult ExecuteBffFile(string BffFilePath)
 		{
