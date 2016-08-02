@@ -2,7 +2,7 @@
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
 // Requires fbuild.exe to be in the path.
 // Predominately tested with Win10/VS2015.
-// Different VS toolchains like Durango or Orbis may require some modifications.
+// Different VS toolchains like Durango, and more modern Orbis SDKs may require some modifications.
 using System;
 using System.Collections;
 using System.Collections.Generic;
