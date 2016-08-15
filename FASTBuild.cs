@@ -1,4 +1,4 @@
-﻿// Copyright 2015 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
+﻿// Copyright 2016 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
 // Requires fbuild.exe to be in the path.
 // Predominately tested with Win10/VS2015.
@@ -14,7 +14,27 @@ namespace UnrealBuildTool
 {
 	public class FASTBuild
 	{
-		public enum ExecutionResult
+        /*---- Configurable User settings ----*/
+
+        // Location of the shared cache, it could be a local or network path (i.e: "\\\\DESKTOP-BEAST\\FASTBuildCache").
+        // Note: an empty string ("") means caching is disabled.
+        private static string CachePath = ""; //"\\\\DESKTOP-BEAST\\FASTBuildCache";   
+
+        public enum eCacheMode
+        {
+            ReadWrite,
+            ReadOnly,
+            WriteOnly,
+        }
+
+        // Cache access mode
+        private static eCacheMode CacheMode = eCacheMode.ReadWrite; 
+
+
+        private static bool bEnableDistribution = true;     // Allows to enable/disable build distribution
+        /*--------------------------------------*/
+
+        public enum ExecutionResult
 		{
 			Unavailable,
 			TasksFailed,
@@ -414,8 +434,14 @@ namespace UnrealBuildTool
 
 			AddText("Settings \n{\n");
 
-			//Start Environment
-			AddText("\t.Environment = \n\t{\n");
+            // Optional cachePath user setting
+            if (CachePath != "")
+            {
+                AddText(string.Format("\t.CachePath = '{0}'\n", CachePath));
+            }
+
+            //Start Environment
+            AddText("\t.Environment = \n\t{\n");
 			AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
 			if (envVars.Contains("TMP"))
 				AddText(string.Format("\t\t\"TMP={0}\",\n", envVars["TMP"]));
@@ -729,8 +755,31 @@ namespace UnrealBuildTool
 
 		private static ExecutionResult ExecuteBffFile(string BffFilePath)
 		{
-			//Interesting flags for FASTBuild: -cache (can also be controlled by environment variables), -nostoponerror, -verbose
-			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", "-summary -dist -ide -config " + BffFilePath);
+            string cacheArgument = "";
+
+            if (CachePath != "")
+            {
+                switch (CacheMode)
+                {
+                    case eCacheMode.ReadOnly:
+                        cacheArgument = "-cacheread";
+                        break;
+                    case eCacheMode.WriteOnly:
+                        cacheArgument = "-cachewrite";
+                        break;
+                    case eCacheMode.ReadWrite:
+                        cacheArgument = "-cache";
+                        break;
+                }
+            }
+
+            string distArgument = bEnableDistribution ? "-dist" : "";
+
+
+            string FBCommandLine = string.Format("-summary {0} {1} -noprogress -config {2}", distArgument, cacheArgument, BffFilePath);
+
+			//Interesting flags for FASTBuild: -nostoponerror, -verbose
+			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", FBCommandLine);
 
 			FBStartInfo.UseShellExecute = false;
 			FBStartInfo.WorkingDirectory = Path.Combine(BuildConfiguration.RelativeEnginePath, "Source");
