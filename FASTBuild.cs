@@ -348,11 +348,16 @@ namespace UnrealBuildTool
 		{
 			VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
 
-			IDictionary envVars = Environment.GetEnvironmentVariables();
+			// Copy environment into a case-insensitive dictionary for easier key lookups
+			Dictionary<string, string> envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
+			{
+				envVars[(string)entry.Key] = (string)entry.Value;
+			}
 
 			AddText(string.Format(".VSBasePath = '{0}..\\'\n", VCEnv.VisualCppDir));
 			AddText(string.Format(".WindowsSDKBasePath = '{0}'\n", VCEnv.WindowsSDKDir));
-			if (envVars.Contains("CommonProgramFiles"))
+			if (envVars.ContainsKey("CommonProgramFiles"))
 			{
 				AddText(string.Format(".CommonProgramFiles = '{0}'\n", envVars["CommonProgramFiles"]));
 			}
@@ -392,7 +397,7 @@ namespace UnrealBuildTool
 
 			AddText("}\n\n"); //End compiler
 
-			if (envVars.Contains("DurangoXDK"))
+			if (envVars.ContainsKey("DurangoXDK"))
 			{
 				AddText(string.Format("\n.DurangoXDK = '{0}'\n", envVars["DurangoXDK"]));
 				AddText("Compiler('UE4XBOneCompiler') \n{\n");
@@ -423,7 +428,7 @@ namespace UnrealBuildTool
 				AddText("}\n\n"); //End compiler
 			}
 
-			if (envVars.Contains("SCE_ORBIS_SDK_DIR"))
+			if (envVars.ContainsKey("SCE_ORBIS_SDK_DIR"))
 			{
 				AddText(string.Format(".SCE_ORBIS_SDK_DIR = '{0}'\n", envVars["SCE_ORBIS_SDK_DIR"]));
 				AddText(string.Format(".PS4BasePath = '{0}/host_tools/bin'\n\n", envVars["SCE_ORBIS_SDK_DIR"]));
@@ -443,13 +448,13 @@ namespace UnrealBuildTool
             //Start Environment
             AddText("\t.Environment = \n\t{\n");
 			AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
-			if (envVars.Contains("TMP"))
+			if (envVars.ContainsKey("TMP"))
 				AddText(string.Format("\t\t\"TMP={0}\",\n", envVars["TMP"]));
-			if (envVars.Contains("SystemRoot"))
+			if (envVars.ContainsKey("SystemRoot"))
 				AddText(string.Format("\t\t\"SystemRoot={0}\",\n", envVars["SystemRoot"]));
-			if(envVars.Contains("INCLUDE"))
+			if(envVars.ContainsKey("INCLUDE"))
 				AddText(string.Format("\t\t\"INCLUDE={0}\",\n", envVars["INCLUDE"]));
-			if (envVars.Contains("LIB"))
+			if (envVars.ContainsKey("LIB"))
 				AddText(string.Format("\t\t\"LIB={0}\",\n", envVars["LIB"]));
 
 			AddText("\t}\n"); //End environment
