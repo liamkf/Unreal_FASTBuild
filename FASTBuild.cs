@@ -14,27 +14,26 @@ namespace UnrealBuildTool
 {
 	public class FASTBuild
 	{
-        /*---- Configurable User settings ----*/
 
-        // Location of the shared cache, it could be a local or network path (i.e: "\\\\DESKTOP-BEAST\\FASTBuildCache").
-        // Note: an empty string ("") means caching is disabled.
-        private static string CachePath = ""; //"\\\\DESKTOP-BEAST\\FASTBuildCache";   
+		// Location of the shared cache, it could be a local or network path (i.e: "\\\\DESKTOP-BEAST\\FASTBuildCache").
+		// Note: an empty string ("") means caching is disabled.
+		private static string CachePath = ""; //"\\\\DESKTOP-BEAST\\FASTBuildCache";
 
-        public enum eCacheMode
-        {
-            ReadWrite,
-            ReadOnly,
-            WriteOnly,
-        }
+		public enum eCacheMode
+		{
+			ReadWrite,
+			ReadOnly,
+			WriteOnly,
+		}
 
-        // Cache access mode
-        private static eCacheMode CacheMode = eCacheMode.ReadWrite; 
+		// Cache access mode
+		private static eCacheMode CacheMode = eCacheMode.ReadWrite; 
 
 
-        private static bool bEnableDistribution = true;     // Allows to enable/disable build distribution
-        /*--------------------------------------*/
+		private static bool bEnableDistribution = true;     // Set to true to enable network build distribution
+		/*--------------------------------------*/
 
-        public enum ExecutionResult
+		public enum ExecutionResult
 		{
 			Unavailable,
 			TasksFailed,
@@ -382,12 +381,12 @@ namespace UnrealBuildTool
 				platformVersionNumber = "120";
 			}
 
-            /* Maybe not needed to compile anymore?
+			/* Maybe not needed to compile anymore?
 			if(!WindowsPlatform.bUseWindowsSDK10)
 				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcr{1}.dll'\n", platformVersionNumber, platformVersionNumber));
 			else
 				AddText("\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\n");
-            */
+			*/
 			AddText(string.Format("\t\t'$Root$/amd64/mspft{0}.dll'\n",platformVersionNumber));
 			AddText(string.Format("\t\t'$Root$/amd64/msobj{0}.dll'\n", platformVersionNumber));
 			AddText(string.Format("\t\t'$Root$/amd64/mspdb{0}.dll'\n", platformVersionNumber));
@@ -439,14 +438,14 @@ namespace UnrealBuildTool
 
 			AddText("Settings \n{\n");
 
-            // Optional cachePath user setting
-            if (CachePath != "")
-            {
-                AddText(string.Format("\t.CachePath = '{0}'\n", CachePath));
-            }
+			// Optional cachePath user setting
+			if (CachePath != "")
+			{
+				AddText(string.Format("\t.CachePath = '{0}'\n", CachePath));
+			}
 
-            //Start Environment
-            AddText("\t.Environment = \n\t{\n");
+			//Start Environment
+			AddText("\t.Environment = \n\t{\n");
 			AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
 			if (envVars.ContainsKey("TMP"))
 				AddText(string.Format("\t\t\"TMP={0}\",\n", envVars["TMP"]));
@@ -756,32 +755,32 @@ namespace UnrealBuildTool
 			{
 				Console.WriteLine("Exception while creating bff file: " + e.ToString());
 			}
-        }
+		}
 
 		private static ExecutionResult ExecuteBffFile(string BffFilePath)
 		{
-            string cacheArgument = "";
+			string cacheArgument = "";
 
-            if (CachePath != "")
-            {
-                switch (CacheMode)
-                {
-                    case eCacheMode.ReadOnly:
-                        cacheArgument = "-cacheread";
-                        break;
-                    case eCacheMode.WriteOnly:
-                        cacheArgument = "-cachewrite";
-                        break;
-                    case eCacheMode.ReadWrite:
-                        cacheArgument = "-cache";
-                        break;
-                }
-            }
+			if (CachePath != "")
+			{
+				switch (CacheMode)
+				{
+					case eCacheMode.ReadOnly:
+						cacheArgument = "-cacheread";
+						break;
+					case eCacheMode.WriteOnly:
+						cacheArgument = "-cachewrite";
+						break;
+					case eCacheMode.ReadWrite:
+						cacheArgument = "-cache";
+						break;
+				}
+			}
 
-            string distArgument = bEnableDistribution ? "-dist" : "";
+			string distArgument = bEnableDistribution ? "-dist" : "";
 
 
-            string FBCommandLine = string.Format("-summary {0} {1} -noprogress -config {2}", distArgument, cacheArgument, BffFilePath);
+			string FBCommandLine = string.Format("-summary {0} {1} -noprogress -config {2}", distArgument, cacheArgument, BffFilePath);
 
 			//Interesting flags for FASTBuild: -nostoponerror, -verbose
 			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", FBCommandLine);
