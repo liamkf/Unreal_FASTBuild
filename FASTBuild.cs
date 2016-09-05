@@ -112,7 +112,7 @@ namespace UnrealBuildTool
 
 			// Some tricky defines /DTROUBLE=\"\\\" abc  123\\\"\" aren't handled properly by either Unreal or Fastbuild, but we do our best.
 			char[] SpaceChar = { ' ' };
-			string[] RawTokens = CompilerCommandLine.Split(' ');
+			string[] RawTokens = CompilerCommandLine.Trim().Split(' ');
 			List<string> ProcessedTokens = new List<string>();
 			bool QuotesOpened = false;
 			string PartialToken = "";
@@ -127,7 +127,7 @@ namespace UnrealBuildTool
 				}
 				catch(Exception e)
 				{
-					Console.WriteLine("Looks like a reponse file in: " + CompilerCommandLine + ", but we could not load it! " + e.Message);
+					Console.WriteLine("Looks like a response file in: " + CompilerCommandLine + ", but we could not load it! " + e.Message);
 				}
 			}
 
