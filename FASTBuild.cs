@@ -117,6 +117,20 @@ namespace UnrealBuildTool
 			bool QuotesOpened = false;
 			string PartialToken = "";
 
+			if(RawTokens.Length == 1 && RawTokens[0].StartsWith("@\"")) //Response files only in UE4 4.13 by default. Changing VCToolChain to not do this is probably better.
+			{
+				string responseFilePath = RawTokens[0].Substring(2, RawTokens[0].Length - 3); // bit of a bodge to get the @"response.txt" path...
+				try
+				{
+					if (File.Exists(responseFilePath))
+						RawTokens = File.ReadAllText(responseFilePath).Split(' '); //Certainly not ideal 
+				}
+				catch(Exception e)
+				{
+					Console.WriteLine("Looks like a reponse file in: " + CompilerCommandLine + ", but we could not load it! " + e.Message);
+				}
+			}
+
 			// Raw tokens being split with spaces may have split up some two argument options and 
 			// paths with multiple spaces in them also need some love
 			for(int i=0; i < RawTokens.Length; ++i)
