@@ -357,6 +357,27 @@ namespace UnrealBuildTool
 			return Value;
 		}
 
+		public static string GetRegistryValue(string keyName, string valueName, object defaultValue)
+		{
+			object returnValue = (string)Microsoft.Win32.Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\" + keyName, valueName, defaultValue);
+			if (returnValue != null)
+				return returnValue.ToString();
+
+			returnValue = Microsoft.Win32.Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\" + keyName, valueName, defaultValue);
+			if (returnValue != null)
+				return returnValue.ToString();
+
+			returnValue = (string)Microsoft.Win32.Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\" + keyName, valueName, defaultValue);
+			if (returnValue != null)
+				return returnValue.ToString();
+
+			returnValue = Microsoft.Win32.Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\Wow6432Node\\" + keyName, valueName, defaultValue);
+			if (returnValue != null)
+				return returnValue.ToString();
+
+			return defaultValue.ToString();
+		}
+
 		private static void WriteEnvironmentSetup()
 		{
 			VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
@@ -385,7 +406,8 @@ namespace UnrealBuildTool
 			AddText("\t\t'$Root$/amd64/c1.dll'\n");
 			AddText("\t\t'$Root$/amd64/c1xx.dll'\n");
 			AddText("\t\t'$Root$/amd64/c2.dll'\n");
-			AddText("\t\t'$Root$/amd64/1033/clui.dll'\n");
+			string InstalledLocalization = GetRegistryValue(@"Microsoft\VisualStudio\14.0\General", "UILanguage", "1033");
+			AddText(string.Format("\t\t'$Root$/amd64/{0}/clui.dll'\n",InstalledLocalization));
 			AddText("\t\t'$Root$/amd64/mspdbsrv.exe'\n");
 			AddText("\t\t'$Root$/amd64/mspdbcore.dll'\n");
 
