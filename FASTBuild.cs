@@ -410,7 +410,7 @@ namespace UnrealBuildTool
 			string CompilerRoot = VCEnv.VisualCppDir + "bin/amd64/";
 			if (File.Exists(CompilerRoot + "1033/clui.dll")) //Check English first...
 			{
-				AddText("\t\t'$Root$/1033/clui.dll'\n");
+				AddText("\t\t'$Root$/amd64/1033/clui.dll'\n");
 			}
 			else
 			{
@@ -418,7 +418,7 @@ namespace UnrealBuildTool
 				var cluiDirectories = numericDirectories.Where(d => Directory.GetFiles(d, "clui.dll").Any());
 				if (cluiDirectories.Any())
 				{
-					AddText(string.Format("\t\t'$Root$/{0}/clui.dll'\n", Path.GetFileName(cluiDirectories.First())));
+					AddText(string.Format("\t\t'$Root$/amd64/{0}/clui.dll'\n", Path.GetFileName(cluiDirectories.First())));
 				}
 			}
 			AddText("\t\t'$Root$/amd64/mspdbsrv.exe'\n");
