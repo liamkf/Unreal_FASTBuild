@@ -381,6 +381,18 @@ namespace UnrealBuildTool
 
 		private static void WriteEnvironmentSetup()
 		{
+			VCEnvironment VCEnv = null;
+			try
+			{
+				// This may fail if the caller emptied PATH; we try to ignore the problem since
+				// it probably means we are building for another platform.
+				VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
+			}
+			catch (Exception)
+			{
+				Console.WriteLine("Failed to get Visual Studio environment.");
+			}
+
 			// Copy environment into a case-insensitive dictionary for easier key lookups
 			Dictionary<string, string> envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
@@ -388,13 +400,13 @@ namespace UnrealBuildTool
 				envVars[(string)entry.Key] = (string)entry.Value;
 			}
 
-			bool bHasVCEnvironment = false;
-			try
+			if (envVars.ContainsKey("CommonProgramFiles"))
 			{
-				// This may fail if the caller emptied PATH; we try to ignore the problem since
-				// it probably means we are building for another platform.
-				VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
+				AddText(string.Format(".CommonProgramFiles = '{0}'\n", envVars["CommonProgramFiles"]));
+			}
 
+			if (VCEnv != null)
+			{
 				AddText(string.Format(".VSBasePath = '{0}..\\'\n", VCEnv.VisualCppDir));
 				AddText(string.Format(".WindowsSDKBasePath = '{0}'\n", VCEnv.WindowsSDKDir));
 
@@ -445,17 +457,6 @@ namespace UnrealBuildTool
 				AddText("\t}\n"); //End extra files
 
 				AddText("}\n\n"); //End compiler
-
-				bHasVCEnvironment = true;
-			}
-			catch (Exception)
-			{
-				Console.WriteLine("Failed to get Visual Studio environment.");
-			}
-
-			if (envVars.ContainsKey("CommonProgramFiles"))
-			{
-				AddText(string.Format(".CommonProgramFiles = '{0}'\n", envVars["CommonProgramFiles"]));
 			}
 
 			if (envVars.ContainsKey("DurangoXDK"))
@@ -508,7 +509,7 @@ namespace UnrealBuildTool
 
 			//Start Environment
 			AddText("\t.Environment = \n\t{\n");
-			if (bHasVCEnvironment)
+			if (VCEnv != null)
 				AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
 			if (envVars.ContainsKey("TMP"))
 				AddText(string.Format("\t\t\"TMP={0}\",\n", envVars["TMP"]));
