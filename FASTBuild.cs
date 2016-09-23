@@ -75,6 +75,7 @@ namespace UnrealBuildTool
 		}
 
 		private static bool IsMSVC() { return BuildType == FBBuildType.Windows || BuildType == FBBuildType.XBOne; }
+		private static bool IsXBOnePDBUtil(Action action) { return action.CommandPath.Contains("XboxOnePDBFileUtil.exe"); }
 		private static string GetCompilerName()
 		{
 			switch (BuildType)
@@ -603,7 +604,11 @@ namespace UnrealBuildTool
 
 			string OutputFile;
 
-			if (IsMSVC())
+			if (IsXBOnePDBUtil(Action))
+			{
+				OutputFile = ParsedLinkerOptions["OtherOptions"].Trim(' ').Trim('"');
+			}
+			else if (IsMSVC())
 			{
 				OutputFile = GetOptionValue(ParsedLinkerOptions, "/OUT:", Action, ProblemIfNotFound: true);
 			}
@@ -627,7 +632,17 @@ namespace UnrealBuildTool
 
 			List<int> PrebuildDependencies = new List<int>();
 
-			if (Action.CommandPath.Contains("lib.exe") || Action.CommandPath.Contains("orbis-snarl"))
+			if (IsXBOnePDBUtil(Action))
+			{
+				AddText(string.Format("Exec('Action_{0}')\n{{\n", ActionIndex));
+				AddText(string.Format("\t.ExecExecutable = '{0}'\n", Action.CommandPath));
+				AddText(string.Format("\t.ExecArguments = '{0}'\n", Action.CommandArguments));
+				AddText(string.Format("\t.ExecInput = {{ {0} }} \n", ParsedLinkerOptions["InputFile"]));
+				AddText(string.Format("\t.ExecOutput = '{0}' \n", OutputFile));
+				AddText(string.Format("\t.PreBuildDependencies = {{ {0} }} \n", ParsedLinkerOptions["InputFile"]));
+				AddText(string.Format("}}\n\n"));
+			}
+			else if (Action.CommandPath.Contains("lib.exe") || Action.CommandPath.Contains("orbis-snarl"))
 			{				
 				if (DependencyIndices.Count > 0 && ResponseFilePath.Length > 0)
 				{
