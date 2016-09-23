@@ -407,8 +407,20 @@ namespace UnrealBuildTool
 			AddText("\t\t'$Root$/amd64/c1.dll'\n");
 			AddText("\t\t'$Root$/amd64/c1xx.dll'\n");
 			AddText("\t\t'$Root$/amd64/c2.dll'\n");
-			string InstalledLocalization = GetRegistryValue(@"Microsoft\VisualStudio\14.0\General", "UILanguage", "1033");
-			AddText(string.Format("\t\t'$Root$/amd64/{0}/clui.dll'\n",InstalledLocalization));
+			string CompilerRoot = VCEnv.VisualCppDir + "bin/amd64/";
+			if (File.Exists(CompilerRoot + "1033/clui.dll")) //Check English first...
+			{
+				AddText("\t\t'$Root$/1033/clui.dll'\n");
+			}
+			else
+			{
+				var numericDirectories = Directory.GetDirectories(CompilerRoot).Where(d => Path.GetFileName(d).All(char.IsDigit));
+				var cluiDirectories = numericDirectories.Where(d => Directory.GetFiles(d, "clui.dll").Any());
+				if (cluiDirectories.Any())
+				{
+					AddText(string.Format("\t\t'$Root$/{0}/clui.dll'\n", Path.GetFileName(cluiDirectories.First())));
+				}
+			}
 			AddText("\t\t'$Root$/amd64/mspdbsrv.exe'\n");
 			AddText("\t\t'$Root$/amd64/mspdbcore.dll'\n");
 
