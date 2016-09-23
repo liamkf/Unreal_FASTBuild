@@ -381,8 +381,6 @@ namespace UnrealBuildTool
 
 		private static void WriteEnvironmentSetup()
 		{
-			VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
-
 			// Copy environment into a case-insensitive dictionary for easier key lookups
 			Dictionary<string, string> envVars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 			foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables())
@@ -390,60 +388,75 @@ namespace UnrealBuildTool
 				envVars[(string)entry.Key] = (string)entry.Value;
 			}
 
-			AddText(string.Format(".VSBasePath = '{0}..\\'\n", VCEnv.VisualCppDir));
-			AddText(string.Format(".WindowsSDKBasePath = '{0}'\n", VCEnv.WindowsSDKDir));
+			bool bHasVCEnvironment = false;
+			try
+			{
+				// This may fail if the caller emptied PATH; we try to ignore the problem since
+				// it probably means we are building for another platform.
+				VCEnvironment VCEnv = VCEnvironment.SetEnvironment(CPPTargetPlatform.Win64, false);
+
+				AddText(string.Format(".VSBasePath = '{0}..\\'\n", VCEnv.VisualCppDir));
+				AddText(string.Format(".WindowsSDKBasePath = '{0}'\n", VCEnv.WindowsSDKDir));
+
+				AddText("Compiler('UE4ResourceCompiler') \n{\n");
+				AddText("\t.Executable = '$WindowsSDKBasePath$/bin/x64/rc.exe'\n}\n\n");
+
+				AddText("Compiler('UE4Compiler') \n{\n");
+				AddText("\t.Root = '$VSBasePath$/VC/bin'\n");
+				AddText("\t.Executable = '$Root$/amd64/cl.exe'\n");
+				AddText("\t.ExtraFiles =\n\t{\n");
+				AddText("\t\t'$Root$/amd64/c1.dll'\n");
+				AddText("\t\t'$Root$/amd64/c1xx.dll'\n");
+				AddText("\t\t'$Root$/amd64/c2.dll'\n");
+				string CompilerRoot = VCEnv.VisualCppDir + "bin/amd64/";
+				if (File.Exists(CompilerRoot + "1033/clui.dll")) //Check English first...
+				{
+					AddText("\t\t'$Root$/1033/clui.dll'\n");
+				}
+				else
+				{
+					var numericDirectories = Directory.GetDirectories(CompilerRoot).Where(d => Path.GetFileName(d).All(char.IsDigit));
+					var cluiDirectories = numericDirectories.Where(d => Directory.GetFiles(d, "clui.dll").Any());
+					if (cluiDirectories.Any())
+					{
+						AddText(string.Format("\t\t'$Root$/{0}/clui.dll'\n", Path.GetFileName(cluiDirectories.First())));
+					}
+				}
+				AddText("\t\t'$Root$/amd64/mspdbsrv.exe'\n");
+				AddText("\t\t'$Root$/amd64/mspdbcore.dll'\n");
+
+				string platformVersionNumber = "140";
+				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
+				{
+					platformVersionNumber = "120";
+				}
+
+				/* Maybe not needed to compile anymore?
+				if(!WindowsPlatform.bUseWindowsSDK10)
+					AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcr{1}.dll'\n", platformVersionNumber, platformVersionNumber));
+				else
+					AddText("\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\n");
+				*/
+				AddText(string.Format("\t\t'$Root$/amd64/mspft{0}.dll'\n",platformVersionNumber));
+				AddText(string.Format("\t\t'$Root$/amd64/msobj{0}.dll'\n", platformVersionNumber));
+				AddText(string.Format("\t\t'$Root$/amd64/mspdb{0}.dll'\n", platformVersionNumber));
+				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcp{1}.dll'\n", platformVersionNumber, platformVersionNumber));
+				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/vccorlib{1}.dll'\n", platformVersionNumber, platformVersionNumber));
+				AddText("\t}\n"); //End extra files
+
+				AddText("}\n\n"); //End compiler
+
+				bHasVCEnvironment = true;
+			}
+			catch (Exception)
+			{
+				Console.WriteLine("Failed to get Visual Studio environment.");
+			}
+
 			if (envVars.ContainsKey("CommonProgramFiles"))
 			{
 				AddText(string.Format(".CommonProgramFiles = '{0}'\n", envVars["CommonProgramFiles"]));
 			}
-
-			AddText("Compiler('UE4ResourceCompiler') \n{\n");
-			AddText("\t.Executable = '$WindowsSDKBasePath$/bin/x64/rc.exe'\n}\n\n");
-
-			AddText("Compiler('UE4Compiler') \n{\n");
-			AddText("\t.Root = '$VSBasePath$/VC/bin'\n");
-			AddText("\t.Executable = '$Root$/amd64/cl.exe'\n");
-			AddText("\t.ExtraFiles =\n\t{\n");
-			AddText("\t\t'$Root$/amd64/c1.dll'\n");
-			AddText("\t\t'$Root$/amd64/c1xx.dll'\n");
-			AddText("\t\t'$Root$/amd64/c2.dll'\n");
-			string CompilerRoot = VCEnv.VisualCppDir + "bin/amd64/";
-			if (File.Exists(CompilerRoot + "1033/clui.dll")) //Check English first...
-			{
-				AddText("\t\t'$Root$/1033/clui.dll'\n");
-			}
-			else
-			{
-				var numericDirectories = Directory.GetDirectories(CompilerRoot).Where(d => Path.GetFileName(d).All(char.IsDigit));
-				var cluiDirectories = numericDirectories.Where(d => Directory.GetFiles(d, "clui.dll").Any());
-				if (cluiDirectories.Any())
-				{
-					AddText(string.Format("\t\t'$Root$/{0}/clui.dll'\n", Path.GetFileName(cluiDirectories.First())));
-				}
-			}
-			AddText("\t\t'$Root$/amd64/mspdbsrv.exe'\n");
-			AddText("\t\t'$Root$/amd64/mspdbcore.dll'\n");
-
-			string platformVersionNumber = "140";
-			if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
-			{
-				platformVersionNumber = "120";
-			}
-
-			/* Maybe not needed to compile anymore?
-			if(!WindowsPlatform.bUseWindowsSDK10)
-				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcr{1}.dll'\n", platformVersionNumber, platformVersionNumber));
-			else
-				AddText("\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\n");
-			*/
-			AddText(string.Format("\t\t'$Root$/amd64/mspft{0}.dll'\n",platformVersionNumber));
-			AddText(string.Format("\t\t'$Root$/amd64/msobj{0}.dll'\n", platformVersionNumber));
-			AddText(string.Format("\t\t'$Root$/amd64/mspdb{0}.dll'\n", platformVersionNumber));
-			AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcp{1}.dll'\n", platformVersionNumber, platformVersionNumber));
-			AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/vccorlib{1}.dll'\n", platformVersionNumber, platformVersionNumber));
-			AddText("\t}\n"); //End extra files
-
-			AddText("}\n\n"); //End compiler
 
 			if (envVars.ContainsKey("DurangoXDK"))
 			{
@@ -495,7 +508,8 @@ namespace UnrealBuildTool
 
 			//Start Environment
 			AddText("\t.Environment = \n\t{\n");
-			AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
+			if (bHasVCEnvironment)
+				AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
 			if (envVars.ContainsKey("TMP"))
 				AddText(string.Format("\t\t\"TMP={0}\",\n", envVars["TMP"]));
 			if (envVars.ContainsKey("SystemRoot"))
