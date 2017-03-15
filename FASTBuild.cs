@@ -2,7 +2,7 @@
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
 // Requires fbuild.exe to be in the path.
 // Predominately tested with Win10/VS2015.
-// Different VS toolchains like Durango, and more modern Orbis SDKs may require some modifications.
+// Different toolchains like Durango and Orbis will likely require some modifications.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -12,33 +12,74 @@ using System.Linq;
 
 namespace UnrealBuildTool
 {
-	public class FASTBuild
+	public class FASTBuild : ActionExecutor
 	{
+		/*---- Configurable User settings ----*/
+
+
+		// Controls network build distribution
+		private bool bEnableDistribution = true;
+
+		// Controls whether to use caching at all. CachePath and CacheMode are only relevant if this is enabled. 
+		private bool bEnableCaching = false;
 
 		// Location of the shared cache, it could be a local or network path (i.e: "\\\\DESKTOP-BEAST\\FASTBuildCache").
-		// Note: an empty string ("") means caching is disabled.
-		private static string CachePath = ""; //"\\\\DESKTOP-BEAST\\FASTBuildCache";
+		// Only relevant if bEnableCaching is true;
+		private string CachePath = ""; //"\\\\DESKTOP-BEAST\\FASTBuildCache";   
 
-		public enum eCacheMode
-		{
-			ReadWrite,
-			ReadOnly,
-			WriteOnly,
+        public enum eCacheMode
+        {
+            ReadWrite, // This machine will both read and write to the cache
+            ReadOnly,  // This machine will only read from the cache, use for developer machines when you have centralized build machines
+            WriteOnly, // This machine will only write from the cache, use for build machines when you have centralized build machines
 		}
 
 		// Cache access mode
-		private static eCacheMode CacheMode = eCacheMode.ReadWrite; 
+		// Only relevant if bEnableCaching is true;
+		private eCacheMode CacheMode = eCacheMode.ReadWrite;
 
+        /*--------------------------------------*/
 
-		private static bool bEnableDistribution = true;     // Set to true to enable network build distribution
-		/*--------------------------------------*/
-
-		public enum ExecutionResult
+		public override string Name
 		{
-			Unavailable,
-			TasksFailed,
-			TasksSucceeded,
+			get { return "FASTBuild"; }
 		}
+
+		public static bool IsAvailable()
+		{
+			if(FBuildExePathOverride != "")
+			{
+				return File.Exists(FBuildExePathOverride);
+			}		
+
+			// Get the name of the XgConsole executable.
+			string fbuild = "fbuild";
+			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
+			{
+				fbuild = "fbuild.exe";
+			}
+
+			// Search the path for it
+			string PathVariable = Environment.GetEnvironmentVariable("PATH");
+			foreach (string SearchPath in PathVariable.Split(Path.PathSeparator))
+			{
+				try
+				{
+					string PotentialPath = Path.Combine(SearchPath, fbuild);
+					if (File.Exists(PotentialPath))
+					{
+						return true;
+					}
+				}
+				catch (ArgumentException)
+				{
+					// PATH variable may contain illegal characters; just ignore them.
+				}
+			}
+			return false;
+		}
+
+
 
 		private enum FBBuildType
 		{
@@ -47,9 +88,9 @@ namespace UnrealBuildTool
 			PS4
 		}
 
-		private static FBBuildType BuildType = FBBuildType.Windows;
+		private FBBuildType BuildType = FBBuildType.Windows;
 
-		private static void DetectBuildType(List<Action> Actions)
+		private void DetectBuildType(List<Action> Actions)
 		{
 			foreach(Action action in Actions)
 			{
@@ -74,9 +115,9 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static bool IsMSVC() { return BuildType == FBBuildType.Windows || BuildType == FBBuildType.XBOne; }
-		private static bool IsXBOnePDBUtil(Action action) { return action.CommandPath.Contains("XboxOnePDBFileUtil.exe"); }
-		private static string GetCompilerName()
+		private bool IsMSVC() { return BuildType == FBBuildType.Windows || BuildType == FBBuildType.XBOne; }
+		private bool IsXBOnePDBUtil(Action action) { return action.CommandPath.Contains("XboxOnePDBFileUtil.exe"); }
+		private string GetCompilerName()
 		{
 			switch (BuildType)
 			{
@@ -88,9 +129,9 @@ namespace UnrealBuildTool
 		}
 
 		//Run FASTBuild on the list of actions. Relies on fbuild.exe being in the path.
-		public static ExecutionResult ExecuteActions(List<Action> Actions)
+		public override bool ExecuteActions(List<Action> Actions)
 		{
-			ExecutionResult FASTBuildResult = ExecutionResult.TasksSucceeded;
+			bool FASTBuildResult = true;
 			if (Actions.Count > 0)
 			{
 				DetectBuildType(Actions);
@@ -101,13 +142,13 @@ namespace UnrealBuildTool
 			return FASTBuildResult;
 		}
 
-		private static void AddText(string StringToWrite)
+		private void AddText(string StringToWrite)
 		{
 			byte[] Info = new System.Text.UTF8Encoding(true).GetBytes(StringToWrite);
 			bffOutputFileStream.Write(Info, 0, Info.Length);
 		}
 
-		private static Dictionary<string, string> ParseCommandLineOptions(string CompilerCommandLine, string[] specialOptions)
+		private Dictionary<string, string> ParseCommandLineOptions(string CompilerCommandLine, string[] SpecialOptions, bool SaveResponseFile = false)
 		{
 			Dictionary<string, string> ParsedCompilerOptions = new Dictionary<string,string>();
 
@@ -117,18 +158,21 @@ namespace UnrealBuildTool
 			List<string> ProcessedTokens = new List<string>();
 			bool QuotesOpened = false;
 			string PartialToken = "";
+			string ResponseFilePath = "";
 
-			if(RawTokens.Length == 1 && RawTokens[0].StartsWith("@\"")) //Response files only in UE4 4.13 by default. Changing VCToolChain to not do this is probably better.
+			if (RawTokens.Length == 1 && RawTokens[0].StartsWith("@\"")) //Response files are in 4.13 by default. Changing VCToolChain to not do this is probably better.
 			{
-				string responseFilePath = RawTokens[0].Substring(2, RawTokens[0].Length - 3); // bit of a bodge to get the @"response.txt" path...
+				ResponseFilePath = RawTokens[0].Substring(2, RawTokens[0].Length - 3); // bit of a bodge to get the @"response.txt" path...
 				try
 				{
-					if (File.Exists(responseFilePath))
-						RawTokens = File.ReadAllText(responseFilePath).Split(' '); //Certainly not ideal 
+					string[] separators = { "\n", " ", "\r" };
+					if (File.Exists(ResponseFilePath))
+						RawTokens = File.ReadAllText(ResponseFilePath).Split(separators, StringSplitOptions.RemoveEmptyEntries); //Certainly not ideal 
 				}
 				catch(Exception e)
 				{
 					Console.WriteLine("Looks like a response file in: " + CompilerCommandLine + ", but we could not load it! " + e.Message);
+					ResponseFilePath = "";
 				}
 			}
 
@@ -225,7 +269,7 @@ namespace UnrealBuildTool
 			}
 
 			//Processed tokens should now have 'whole' tokens, so now we look for any specified special options
-			foreach(string specialOption in specialOptions)
+			foreach(string specialOption in SpecialOptions)
 			{
 				for(int i=0; i < ProcessedTokens.Count; ++i)
 				{
@@ -267,10 +311,15 @@ namespace UnrealBuildTool
 
 			ParsedCompilerOptions["OtherOptions"] = string.Join(" ", ProcessedTokens) + " ";
 
+			if(SaveResponseFile && !string.IsNullOrEmpty(ResponseFilePath))
+			{
+				ParsedCompilerOptions["@"] = ResponseFilePath;
+			}
+
 			return ParsedCompilerOptions;
 		}
 
-		private static List<Action> SortActions(List<Action> InActions)
+		private List<Action> SortActions(List<Action> InActions)
 		{
 			List<Action> Actions = InActions;
 
@@ -341,7 +390,7 @@ namespace UnrealBuildTool
 			return Actions;
 		}
 
-		private static string GetOptionValue(Dictionary<string, string> OptionsDictionary, string Key, Action Action, bool ProblemIfNotFound = false)
+		private string GetOptionValue(Dictionary<string, string> OptionsDictionary, string Key, Action Action, bool ProblemIfNotFound = false)
 		{
 			string Value = string.Empty;
 			if(OptionsDictionary.TryGetValue(Key, out Value))
@@ -358,7 +407,7 @@ namespace UnrealBuildTool
 			return Value;
 		}
 
-		public static string GetRegistryValue(string keyName, string valueName, object defaultValue)
+		public string GetRegistryValue(string keyName, string valueName, object defaultValue)
 		{
 			object returnValue = (string)Microsoft.Win32.Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\" + keyName, valueName, defaultValue);
 			if (returnValue != null)
@@ -379,7 +428,7 @@ namespace UnrealBuildTool
 			return defaultValue.ToString();
 		}
 
-		private static void WriteEnvironmentSetup()
+		private void WriteEnvironmentSetup()
 		{
 			VCEnvironment VCEnv = null;
 			try
@@ -407,7 +456,7 @@ namespace UnrealBuildTool
 
 			if (VCEnv != null)
 			{
-				AddText(string.Format(".VSBasePath = '{0}..\\'\n", VCEnv.VisualCppDir));
+				AddText(string.Format(".VSBasePath = '{0}\\'\n", VCEnv.VSInstallDir));
 				AddText(string.Format(".WindowsSDKBasePath = '{0}'\n", VCEnv.WindowsSDKDir));
 
 				AddText("Compiler('UE4ResourceCompiler') \n{\n");
@@ -420,7 +469,7 @@ namespace UnrealBuildTool
 				AddText("\t\t'$Root$/amd64/c1.dll'\n");
 				AddText("\t\t'$Root$/amd64/c1xx.dll'\n");
 				AddText("\t\t'$Root$/amd64/c2.dll'\n");
-				string CompilerRoot = VCEnv.VisualCppDir + "bin/amd64/";
+				string CompilerRoot = VCEnv.VCToolPath64.ToString() + "/";
 				if (File.Exists(CompilerRoot + "1033/clui.dll")) //Check English first...
 				{
 					AddText("\t\t'$Root$/1033/clui.dll'\n");
@@ -502,7 +551,7 @@ namespace UnrealBuildTool
 			AddText("Settings \n{\n");
 
 			// Optional cachePath user setting
-			if (CachePath != "")
+			if (bEnableCaching && CachePath != "")
 			{
 				AddText(string.Format("\t.CachePath = '{0}'\n", CachePath));
 			}
@@ -510,7 +559,7 @@ namespace UnrealBuildTool
 			//Start Environment
 			AddText("\t.Environment = \n\t{\n");
 			if (VCEnv != null)
-				AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
+			AddText("\t\t\"PATH=$VSBasePath$\\Common7\\IDE\\;$VSBasePath$\\VC\\bin\\\",\n");
 			if (envVars.ContainsKey("TMP"))
 				AddText(string.Format("\t\t\"TMP={0}\",\n", envVars["TMP"]));
 			if (envVars.ContainsKey("SystemRoot"))
@@ -524,7 +573,7 @@ namespace UnrealBuildTool
 			AddText("}\n\n"); //End Settings
 		}
 
-		private static void AddCompileAction(Action Action, int ActionIndex, List<int> DependencyIndices)
+		private void AddCompileAction(Action Action, int ActionIndex, List<int> DependencyIndices)
 		{
 			string CompilerName = GetCompilerName();
 			if (Action.CommandPath.Contains("rc.exe"))
@@ -587,7 +636,8 @@ namespace UnrealBuildTool
 			{
 				string PCHIncludeHeader = GetOptionValue(ParsedCompilerOptions, "/Yu", Action, ProblemIfNotFound: true);
 				string PCHOutputFile = GetOptionValue(ParsedCompilerOptions, "/Fp", Action, ProblemIfNotFound: true);
-				AddText(string.Format("\t.CompilerOptions = '\"%1\" /Fo\"%2\" /Fp\"{0}\" /Yu\"{1}\" {2} '\n", PCHOutputFile, PCHIncludeHeader, OtherCompilerOptions));
+				string PCHToForceInclude = PCHOutputFile.Replace(".pch", "");
+				AddText(string.Format("\t.CompilerOptions = '\"%1\" /Fo\"%2\" /Fp\"{0}\" /Yu\"{1}\" /FI\"{2}\" {3} '\n", PCHOutputFile, PCHIncludeHeader, PCHToForceInclude, OtherCompilerOptions));
 				CompilerOutputExtension = ".cpp.obj";
 			}
 			else
@@ -623,11 +673,11 @@ namespace UnrealBuildTool
 			AddText(string.Format("}}\n\n"));
 		}
 
-		private static void AddLinkAction(List<Action> Actions, int ActionIndex, List<int> DependencyIndices)
+		private void AddLinkAction(List<Action> Actions, int ActionIndex, List<int> DependencyIndices)
 		{
 			Action Action = Actions[ActionIndex];
 			string[] SpecialLinkerOptions = { "/OUT:", "@", "-o" };
-			var ParsedLinkerOptions = ParseCommandLineOptions(Action.CommandArguments, SpecialLinkerOptions);
+			var ParsedLinkerOptions = ParseCommandLineOptions(Action.CommandArguments, SpecialLinkerOptions, SaveResponseFile: true);
 
 			string OutputFile;
 
@@ -654,7 +704,7 @@ namespace UnrealBuildTool
 				return;
 			}
 
-			string ResponseFilePath = GetOptionValue(ParsedLinkerOptions, "@", Action, ProblemIfNotFound: Action.CommandPath.Contains("link.exe")); //linker always uses response files
+			string ResponseFilePath = GetOptionValue(ParsedLinkerOptions, "@", Action);
 			string OtherCompilerOptions = GetOptionValue(ParsedLinkerOptions, "OtherOptions", Action);
 
 			List<int> PrebuildDependencies = new List<int>();
@@ -671,7 +721,7 @@ namespace UnrealBuildTool
 			}
 			else if (Action.CommandPath.Contains("lib.exe") || Action.CommandPath.Contains("orbis-snarl"))
 			{				
-				if (DependencyIndices.Count > 0 && ResponseFilePath.Length > 0)
+				if (DependencyIndices.Count > 0)
 				{
 					for (int i = 0; i < DependencyIndices.Count; ++i) //Don't specify pch or resource files, they have the wrong name and the response file will have them anyways.
 					{
@@ -698,7 +748,7 @@ namespace UnrealBuildTool
 				AddText(string.Format("\t.CompilerOutputPath = \"{0}\"\n", Path.GetDirectoryName(OutputFile)));
 				AddText(string.Format("\t.Librarian = '{0}' \n", Action.CommandPath));
 
-				if (ResponseFilePath.Length > 0)
+				if (!string.IsNullOrEmpty(ResponseFilePath))
 				{
 					if(IsMSVC())
 					{
@@ -721,13 +771,17 @@ namespace UnrealBuildTool
 					List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("'Action_{0}'", x));
 					if(IsMSVC())
 						AddText(string.Format("\t.LibrarianAdditionalInputs = {{ {0} }} \n", string.Join(",", DependencyNames.ToArray())));
-					else
+					else if(!string.IsNullOrEmpty(ResponseFilePath))
 						AddText(string.Format("\t.LibrarianAdditionalInputs = {{ '{0}' }} \n", ResponseFilePath));
 					PrebuildDependencies.AddRange(DependencyIndices);
 				}
-				else if(ResponseFilePath.Length > 0)
+				else if(!string.IsNullOrEmpty(ResponseFilePath))
 				{
 					AddText(string.Format("\t.LibrarianAdditionalInputs = {{ '{0}' }} \n", ResponseFilePath));
+				}
+				else
+				{
+					AddText(string.Format("\t.LibrarianAdditionalInputs = {{ '{0}' }} \n", GetOptionValue(ParsedLinkerOptions, "InputFile", Action, ProblemIfNotFound: true)));
 				}
 
 				if (PrebuildDependencies.Count > 0)
@@ -744,9 +798,11 @@ namespace UnrealBuildTool
 				if (DependencyIndices.Count > 0) //Insert a dummy node to make sure all of the dependencies are finished.
 												 //If FASTBuild supports PreBuildDependencies on the Executable action we can remove this.
 				{
+					string dummyText = string.IsNullOrEmpty(ResponseFilePath) ? GetOptionValue(ParsedLinkerOptions, "InputFile", Action) : ResponseFilePath;
+					File.SetLastAccessTimeUtc(dummyText, DateTime.UtcNow);
 					AddText(string.Format("Copy('Action_{0}_dummy')\n{{ \n", ActionIndex));
-					AddText(string.Format("\t.Source = '{0}' \n",ResponseFilePath));
-					AddText(string.Format("\t.Dest = '{0}' \n", ResponseFilePath + ".dummy"));
+					AddText(string.Format("\t.Source = '{0}' \n", dummyText));
+					AddText(string.Format("\t.Dest = '{0}' \n", dummyText + ".dummy"));
 					List<string> DependencyNames = DependencyIndices.ConvertAll(x => string.Format("\t\t'Action_{0}', ;{1}", x, Actions[x].StatusDescription));
 					AddText(string.Format("\t.PreBuildDependencies = {{\n{0}\n\t}} \n", string.Join("\n", DependencyNames.ToArray())));
 					AddText(string.Format("}}\n\n"));
@@ -766,7 +822,7 @@ namespace UnrealBuildTool
 				{
 					AddText(string.Format("\t.Libraries = 'Action_{0}_dummy' \n", ActionIndex));
 					if(IsMSVC())
-						AddText(string.Format("\t.LinkerOptions = '/TLBOUT:\"%1\" /Out:\"%2\" @\"{0}\" {1}' \n", ResponseFilePath, OtherCompilerOptions)); // The TLBOUT is a huge bodge to consume the %1.
+						AddText(string.Format("\t.LinkerOptions = '/TLBOUT:\"%1\" /Out:\"%2\" @\"{0}\" ' \n", ResponseFilePath)); // The TLBOUT is a huge bodge to consume the %1.
 					else
 						AddText(string.Format("\t.LinkerOptions = '-o \"%2\" @\"{0}\" {1} -MQ \"%1\"' \n", ResponseFilePath, OtherCompilerOptions)); // The MQ is a huge bodge to consume the %1.
 				}
@@ -776,9 +832,9 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static FileStream bffOutputFileStream = null;
+		private FileStream bffOutputFileStream = null;
 
-		private static void CreateBffFile(List<Action> InActions, string BffFilePath)
+		private void CreateBffFile(List<Action> InActions, string BffFilePath)
 		{
 			List<Action> Actions = SortActions(InActions);
 
@@ -835,11 +891,11 @@ namespace UnrealBuildTool
 			}
 		}
 
-		private static ExecutionResult ExecuteBffFile(string BffFilePath)
+		private bool ExecuteBffFile(string BffFilePath)
 		{
 			string cacheArgument = "";
 
-			if (CachePath != "")
+			if (bEnableCaching)
 			{
 				switch (CacheMode)
 				{
@@ -858,10 +914,10 @@ namespace UnrealBuildTool
 			string distArgument = bEnableDistribution ? "-dist" : "";
 
 
-			string FBCommandLine = string.Format("-summary {0} {1} -noprogress -config {2}", distArgument, cacheArgument, BffFilePath);
+			string FBCommandLine = string.Format("-summary {0} {1} -ide -config {2}", distArgument, cacheArgument, BffFilePath);
 
-			//Interesting flags for FASTBuild: -nostoponerror, -verbose
-			ProcessStartInfo FBStartInfo = new ProcessStartInfo("fbuild", FBCommandLine);
+			//Interesting flags for FASTBuild: -nostoponerror, -verbose	
+			ProcessStartInfo FBStartInfo = new ProcessStartInfo(string.IsNullOrEmpty(FBuildExePathOverride) ? "fbuild" : FBuildExePathOverride, FBCommandLine);
 
 			FBStartInfo.UseShellExecute = false;
 			FBStartInfo.WorkingDirectory = Path.Combine(BuildConfiguration.RelativeEnginePath, "Source");
@@ -889,12 +945,12 @@ namespace UnrealBuildTool
 				FBProcess.BeginErrorReadLine();
 				
 				FBProcess.WaitForExit();
-				return FBProcess.ExitCode == 0 ? ExecutionResult.TasksSucceeded : ExecutionResult.TasksFailed;
+				return FBProcess.ExitCode == 0;
 			}
 			catch (Exception e)
 			{
 				Console.WriteLine("Exception launching fbuild process. Is it in your path?" + e.ToString());
-				return ExecutionResult.Unavailable;
+				return false;
 			}
 		}
 	}
