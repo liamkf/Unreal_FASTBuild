@@ -22,12 +22,12 @@ namespace UnrealBuildTool
 		// Controls network build distribution
 		private bool bEnableDistribution = true;
 
-		// Controls whether to use caching at all. CachePath and CacheMode are only relevant if this is enabled. 
+		// Controls whether to use caching at all. CachePath and CacheMode are only relevant if this is enabled.
 		private bool bEnableCaching = false;
 
-		// Location of the shared cache, it could be a local or network path (i.e: "\\\\DESKTOP-BEAST\\FASTBuildCache").
+		// Location of the shared cache, it could be a local or network path (i.e: @"\\DESKTOP-BEAST\FASTBuildCache").
 		// Only relevant if bEnableCaching is true;
-		private string CachePath = ""; //"\\\\DESKTOP-BEAST\\FASTBuildCache";   
+		private string CachePath = ""; //@"\\DESKTOP-BEAST\FASTBuildCache";   
 
 		public enum eCacheMode
 		{
@@ -465,13 +465,13 @@ namespace UnrealBuildTool
 				AddText("\t.Executable = '$WindowsSDKBasePath$/bin/x64/rc.exe'\n}\n\n");
 
 				AddText("Compiler('UE4Compiler') \n{\n");
-				AddText("\t.Root = '$VSBasePath$/VC/bin'\n");
-				AddText("\t.Executable = '$Root$/amd64/cl.exe'\n");
+				AddText("\t.Root = '$VSBasePath$/VC/bin/amd64'\n");
+				AddText("\t.Executable = '$Root$/cl.exe'\n");
 				AddText("\t.ExtraFiles =\n\t{\n");
-				AddText("\t\t'$Root$/amd64/c1.dll'\n");
-				AddText("\t\t'$Root$/amd64/c1xx.dll'\n");
-				AddText("\t\t'$Root$/amd64/c2.dll'\n");
-				string CompilerRoot = VCEnv.VCToolPath64.ToString() + "/";
+				AddText("\t\t'$Root$/c1.dll'\n");
+				AddText("\t\t'$Root$/c1xx.dll'\n");
+				AddText("\t\t'$Root$/c2.dll'\n");
+				string CompilerRoot = VCEnv.VSInstallDir + "/VC/bin/amd64/";
 				if (File.Exists(CompilerRoot + "1033/clui.dll")) //Check English first...
 				{
 					AddText("\t\t'$Root$/1033/clui.dll'\n");
@@ -485,8 +485,8 @@ namespace UnrealBuildTool
 						AddText(string.Format("\t\t'$Root$/{0}/clui.dll'\n", Path.GetFileName(cluiDirectories.First())));
 					}
 				}
-				AddText("\t\t'$Root$/amd64/mspdbsrv.exe'\n");
-				AddText("\t\t'$Root$/amd64/mspdbcore.dll'\n");
+				AddText("\t\t'$Root$/mspdbsrv.exe'\n");
+				AddText("\t\t'$Root$/mspdbcore.dll'\n");
 
 				string platformVersionNumber = "140";
 				if (WindowsPlatform.Compiler == WindowsCompiler.VisualStudio2013)
@@ -500,9 +500,9 @@ namespace UnrealBuildTool
 				else
 					AddText("\t\t'$WindowsSDKBasePath$/Redist/ucrt/DLLs/x64/ucrtbase.dll'\n\n");
 				*/
-				AddText(string.Format("\t\t'$Root$/amd64/mspft{0}.dll'\n",platformVersionNumber));
-				AddText(string.Format("\t\t'$Root$/amd64/msobj{0}.dll'\n", platformVersionNumber));
-				AddText(string.Format("\t\t'$Root$/amd64/mspdb{0}.dll'\n", platformVersionNumber));
+				AddText(string.Format("\t\t'$Root$/mspft{0}.dll'\n",platformVersionNumber));
+				AddText(string.Format("\t\t'$Root$/msobj{0}.dll'\n", platformVersionNumber));
+				AddText(string.Format("\t\t'$Root$/mspdb{0}.dll'\n", platformVersionNumber));
 				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/msvcp{1}.dll'\n", platformVersionNumber, platformVersionNumber));
 				AddText(string.Format("\t\t'$VSBasePath$/VC/redist/x64/Microsoft.VC{0}.CRT/vccorlib{1}.dll'\n", platformVersionNumber, platformVersionNumber));
 				AddText("\t}\n"); //End extra files
@@ -915,10 +915,9 @@ namespace UnrealBuildTool
 
 			string distArgument = bEnableDistribution ? "-dist" : "";
 
-
+			//Interesting flags for FASTBuild: -nostoponerror, -verbose, -monitor (if FASTBuild Monitor Visual Studio Extension is installed!)
 			string FBCommandLine = string.Format("-summary {0} {1} -ide -config {2}", distArgument, cacheArgument, BffFilePath);
-
-			//Interesting flags for FASTBuild: -nostoponerror, -verbose	
+	
 			ProcessStartInfo FBStartInfo = new ProcessStartInfo(string.IsNullOrEmpty(FBuildExePathOverride) ? "fbuild" : FBuildExePathOverride, FBCommandLine);
 
 			FBStartInfo.UseShellExecute = false;
