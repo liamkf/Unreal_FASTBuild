@@ -1,8 +1,7 @@
 ﻿// Copyright 2016 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
-// Requires fbuild.exe to be in the path.
-// Predominately tested with Win10/VS2015.
-// Different toolchains like Durango and Orbis will likely require some modifications.
+// Tested with Windows 10, Visual Studio 2015, Unreal Engine 4.15
+// Durango and Orbis will likely require some modifications.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -54,7 +53,7 @@ namespace UnrealBuildTool
 				return File.Exists(FBuildExePathOverride);
 			}		
 
-			// Get the name of the XgConsole executable.
+			// Get the name of the FASTBuild executable.
 			string fbuild = "fbuild";
 			if (BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
 			{
@@ -167,9 +166,9 @@ namespace UnrealBuildTool
 				ResponseFilePath = RawTokens[0].Substring(2, RawTokens[0].Length - 3); // bit of a bodge to get the @"response.txt" path...
 				try
 				{
-					string[] separators = { "\n", " ", "\r" };
+					string[] Separators = { "\n", " ", "\r" };
 					if (File.Exists(ResponseFilePath))
-						RawTokens = File.ReadAllText(ResponseFilePath).Split(separators, StringSplitOptions.RemoveEmptyEntries); //Certainly not ideal 
+						RawTokens = File.ReadAllText(ResponseFilePath).Split(Separators, StringSplitOptions.RemoveEmptyEntries); //Certainly not ideal 
 				}
 				catch(Exception e)
 				{
