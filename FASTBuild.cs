@@ -161,9 +161,17 @@ namespace UnrealBuildTool
 			string PartialToken = "";
 			string ResponseFilePath = "";
 
-			if (RawTokens.Length == 1 && RawTokens[0].StartsWith("@\"")) //Response files are in 4.13 by default. Changing VCToolChain to not do this is probably better.
+			if (RawTokens.Length >= 1 && RawTokens[0].StartsWith("@\"")) //Response files are in 4.13 by default. Changing VCToolChain to not do this is probably better.
 			{
-				ResponseFilePath = RawTokens[0].Substring(2, RawTokens[0].Length - 3); // bit of a bodge to get the @"response.txt" path...
+                string responseCommandline = RawTokens[0];
+
+                // If we had spaces inside the response file path, we need to reconstruct the path.
+                for(int i = 1; i < RawTokens.Length; ++i)
+                {
+                    responseCommandline += " " + RawTokens[i];
+                }
+
+				ResponseFilePath = responseCommandline.Substring(2, responseCommandline.Length - 3); // bit of a bodge to get the @"response.txt" path...
 				try
 				{
 					string[] Separators = { "\n", " ", "\r" };
@@ -915,7 +923,7 @@ namespace UnrealBuildTool
 			string distArgument = bEnableDistribution ? "-dist" : "";
 
 			//Interesting flags for FASTBuild: -nostoponerror, -verbose, -monitor (if FASTBuild Monitor Visual Studio Extension is installed!)
-			string FBCommandLine = string.Format("-summary {0} {1} -ide -config {2}", distArgument, cacheArgument, BffFilePath);
+			string FBCommandLine = string.Format("-monitor -summary {0} {1} -ide -config {2}", distArgument, cacheArgument, BffFilePath);
 	
 			ProcessStartInfo FBStartInfo = new ProcessStartInfo(string.IsNullOrEmpty(FBuildExePathOverride) ? "fbuild" : FBuildExePathOverride, FBCommandLine);
 
