@@ -26,7 +26,7 @@ namespace UnrealBuildTool
 
 		// Location of the shared cache, it could be a local or network path (i.e: @"\\DESKTOP-BEAST\FASTBuildCache").
 		// Only relevant if bEnableCaching is true;
-		private string CachePath = ""; //@"\\DESKTOP-BEAST\FASTBuildCache";   
+		private string CachePath = ""; //@"\\YourCacheFolderPath";   
 
 		public enum eCacheMode
 		{
@@ -823,9 +823,9 @@ namespace UnrealBuildTool
 				{
 					AddText(string.Format("\t.Libraries = {{ '{0}' }} \n", ResponseFilePath));
 					if (IsMSVC())
-						AddText(string.Format("\t.LinkerOptions = '@\"%1\" /Out:\"%2\" {0}' \n", OtherCompilerOptions));
+						AddText(string.Format("\t.LinkerOptions = '/TLBOUT:\"%1\" /Out:\"%2\" @\"{0}\" ' \n", ResponseFilePath)); // The TLBOUT is a huge bodge to consume the %1.
 					else
-						AddText(string.Format("\t.LinkerOptions = '-o \"%2\" @\"%1\" {0}' \n", OtherCompilerOptions));
+						AddText(string.Format("\t.LinkerOptions = '-o \"%2\" @\"{0}\" {1} -MQ \"%1\"' \n", ResponseFilePath, OtherCompilerOptions)); // The MQ is a huge bodge to consume the %1.
 				}
 				else
 				{
