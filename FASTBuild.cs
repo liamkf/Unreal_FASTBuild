@@ -28,7 +28,7 @@ namespace UnrealBuildTool
 
 		// Location of the shared cache, it could be a local or network path (i.e: @"\\DESKTOP-BEAST\FASTBuildCache").
 		// Only relevant if bEnableCaching is true;
-		private string CachePath = @"\\DESKTOP-BEAST\FASTBuildCache";   
+		private string CachePath = @"\\SharedDrive\FASTBuildCache";   
 
 		public enum eCacheMode
 		{
@@ -474,13 +474,14 @@ namespace UnrealBuildTool
 				// it probably means we are building for another platform.
                 if(BuildType == FBBuildType.Windows)
                 {
-                    VCEnv = VCEnvironment.SetEnvironment(CppPlatform.Win64, WindowsPlatform.GetDefaultCompiler());
+                    VCEnv = VCEnvironment.SetEnvironment(CppPlatform.Win64, WindowsPlatform.GetDefaultCompiler(null));
                 }
                 else if (BuildType == FBBuildType.XBOne)
                 {
-                    // Translate the xboxOne compiler to the right Windows compiler to set the VC environment vars correctly...
-                    WindowsCompiler windowsCompiler = XboxOnePlatform.GetDefaultCompiler() == XboxOneCompiler.VisualStudio2015 ? WindowsCompiler.VisualStudio2015 : WindowsCompiler.VisualStudio2017;
-                    VCEnv = VCEnvironment.SetEnvironment(CppPlatform.Win64, windowsCompiler);
+                    // If you have XboxOne source access, uncommenting the line below will be better for selecting the appropriate version of the compiler.
+					// Translate the XboxOne compiler to the right Windows compiler to set the VC environment vars correctly...
+                    // WindowsCompiler windowsCompiler = XboxOnePlatform.GetDefaultCompiler() == XboxOneCompiler.VisualStudio2015 ? WindowsCompiler.VisualStudio2015 : WindowsCompiler.VisualStudio2017;
+                    VCEnv = VCEnvironment.SetEnvironment(CppPlatform.Win64, WindowsPlatform.GetDefaultCompiler(null));
                 }
             }
 			catch (Exception)
