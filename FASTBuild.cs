@@ -1,6 +1,6 @@
 // Copyright 2018 Yassine Riahi and Liam Flookes. Provided under a MIT License, see license file on github.
 // Used to generate a fastbuild .bff file from UnrealBuildTool to allow caching and distributed builds. 
-// Tested with Windows 10, Visual Studio 2015/2017, Unreal Engine 4.18, FastBuild v0.95
+// Tested with Windows 10, Visual Studio 2015/2017, Unreal Engine 4.19.1, FastBuild v0.95
 // Durango is fully supported (Compiles with VS2015).
 // Orbis will likely require some changes.
 using System;
@@ -82,7 +82,8 @@ namespace UnrealBuildTool
 			return false;
 		}
 
-
+		private HashSet<string> ForceLocalCompileModules = new HashSet<string>()
+						 {"Module.ProxyLODMeshReduction"};
 
 		private enum FBBuildType
 		{
@@ -105,7 +106,7 @@ namespace UnrealBuildTool
 					BuildType = FBBuildType.PS4;
 					return;
 				}
-				else if (action.CommandArguments.Contains("XboxOne") || action.CommandPath.Contains("Durango") || action.CommandArguments.Contains("Durango"))
+				else if (action.CommandArguments.Contains("Intermediate\\Build\\XboxOne"))
 				{
 					BuildType = FBBuildType.XBOne;
 					return;
@@ -142,13 +143,14 @@ namespace UnrealBuildTool
 				string FASTBuildFilePath = Path.Combine(UnrealBuildTool.EngineDirectory.FullName, "Intermediate", "Build", "fbuild.bff");
 				if (CreateBffFile(Actions, FASTBuildFilePath))
 				{
-					return ExecuteBffFile(FASTBuildFilePath);
+					FASTBuildResult = ExecuteBffFile(FASTBuildFilePath);
 				}
 				else
 				{
-					return false;
+					FASTBuildResult = false;
 				}
 			}
+
 			return FASTBuildResult;
 		}
 
@@ -480,8 +482,8 @@ namespace UnrealBuildTool
                 {
                     // If you have XboxOne source access, uncommenting the line below will be better for selecting the appropriate version of the compiler.
 					// Translate the XboxOne compiler to the right Windows compiler to set the VC environment vars correctly...
-                    // WindowsCompiler windowsCompiler = XboxOnePlatform.GetDefaultCompiler() == XboxOneCompiler.VisualStudio2015 ? WindowsCompiler.VisualStudio2015 : WindowsCompiler.VisualStudio2017;
-                    VCEnv = VCEnvironment.SetEnvironment(CppPlatform.Win64, WindowsPlatform.GetDefaultCompiler(null));
+                    //WindowsCompiler windowsCompiler = XboxOnePlatform.GetDefaultCompiler() == XboxOneCompiler.VisualStudio2015 ? WindowsCompiler.VisualStudio2015 : WindowsCompiler.VisualStudio2017;
+                    //VCEnv = VCEnvironment.SetEnvironment(CppPlatform.Win64, windowsCompiler);
                 }
             }
 			catch (Exception)
@@ -667,6 +669,11 @@ namespace UnrealBuildTool
 			AddText(string.Format("\t.Compiler = '{0}' \n", CompilerName));
 			AddText(string.Format("\t.CompilerInputFiles = \"{0}\"\n", InputFile));
 			AddText(string.Format("\t.CompilerOutputPath = \"{0}\"\n", IntermediatePath));
+
+			if(!Action.bCanExecuteRemotely || !Action.bCanExecuteRemotelyWithSNDBS || ForceLocalCompileModules.Contains(Path.GetFileNameWithoutExtension(InputFile)))
+			{
+				AddText(string.Format("\t.AllowDistribution = false\n"));
+			}
 
 			string OtherCompilerOptions = GetOptionValue(ParsedCompilerOptions, "OtherOptions", Action);
 			string CompilerOutputExtension = ".unset";
